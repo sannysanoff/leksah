@@ -422,6 +422,7 @@ data Prefs = Prefs {
     ,   makeMode            ::   Bool
     ,   singleBuildWithoutLinking :: Bool
     ,   dontInstallLast     ::   Bool
+    ,   filterLogOutput     ::   [String]
     ,   printEvldWithShow   ::   Bool
     ,   breakOnException    ::   Bool
     ,   breakOnError        ::   Bool

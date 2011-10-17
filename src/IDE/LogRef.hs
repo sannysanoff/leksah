@@ -367,9 +367,9 @@ colon = P.colon lexer
 int = fmap fromInteger $ P.integer lexer
 
 defaultLineLogger :: IDELog -> ToolOutput -> IDEM Int
-defaultLineLogger log out = liftIO $ defaultLineLogger' log out
+defaultLineLogger log out = defaultLineLogger' log out
 
-defaultLineLogger' :: IDELog -> ToolOutput -> IO Int
+defaultLineLogger' :: IDELog -> ToolOutput -> IDEM Int
 defaultLineLogger' log out = do
     case out of
         ToolInput  line            -> appendLog log (line ++ "\n") InputTag
@@ -416,7 +416,7 @@ logOutputForBuild package backgroundBuild jumpToWarnings = do
     readAndShow :: (IDELog, Bool, [LogRef]) -> ToolOutput -> IDEM (IDELog, Bool, [LogRef])
     readAndShow (log, inError, errs) output = do
         ideR <- ask
-        liftIO $ case output of
+        case output of
             ToolError line -> do
                 let parsed  =  parse buildLineParser "" line
                 let nonErrorPrefixes = ["Linking ", "ar:", "ld:", "ld warning:"]
@@ -424,9 +424,7 @@ logOutputForBuild package backgroundBuild jumpToWarnings = do
                     Right BuildLine -> return InfoTag
                     Right (OtherLine text) | "Linking " `isPrefixOf` text -> do
                         -- when backgroundBuild $ lift interruptProcess
-                        liftIO $ postGUIAsync $ reflectIDE (do
-                                setErrorList $ reverse errs
-                            ) ideR
+                        setErrorList $ reverse errs
                         return InfoTag
                     Right (OtherLine text) | any (`isPrefixOf` text) nonErrorPrefixes -> do
                         return InfoTag
@@ -485,13 +483,13 @@ logOutputForBreakpoints package = do
     breaks <- logOutputLines (\log out -> do
         case out of
             ToolOutput line -> do
-                logLineNumber <- liftIO $ appendLog log (line ++ "\n") LogTag
+                logLineNumber <- appendLog log (line ++ "\n") LogTag
                 case parse breaksLineParser "" line of
                     Right (BreakpointDescription n span) ->
                         return $ Just $ LogRef span package line (logLineNumber, logLineNumber) BreakpointRef
                     _ -> return Nothing
             _ -> do
-                liftIO $ defaultLineLogger' log out
+                defaultLineLogger' log out
                 return Nothing)
     lift $ setBreakpointList $ catMaybes breaks
 
@@ -500,7 +498,7 @@ logOutputForSetBreakpoint package = do
     breaks <- logOutputLines (\log out -> do
         case out of
             ToolOutput line -> do
-                logLineNumber <- liftIO $ appendLog log (line ++ "\n") LogTag
+                logLineNumber <- appendLog log (line ++ "\n") LogTag
                 case parse setBreakpointLineParser "" line of
                     Right (BreakpointDescription n span) ->
                         return $ Just $ LogRef span package line (logLineNumber, logLineNumber) BreakpointRef
@@ -515,7 +513,7 @@ logOutputForContext package getContexts = do
     refs <- fmap catMaybes $ logOutputLines (\log out -> do
         case out of
             ToolOutput line -> do
-                logLineNumber <- liftIO $ appendLog log (line ++ "\n") LogTag
+                logLineNumber <- appendLog log (line ++ "\n") LogTag
                 let contexts = getContexts line
                 if null contexts
                     then return Nothing

@@ -319,7 +319,7 @@ debugShowContext = packageTry_ $ do
 
 debugShowModules :: IDEAction
 debugShowModules = packageTry_ $ tryDebug_ $ debugCommand ":show modules" $
-    logOutputLines_ $ \log output -> liftIO $ do
+    logOutputLines_ $ \log output -> do
         case output of
             ToolInput  line -> appendLog log (line ++ "\n") InputTag
             ToolOutput line | ", interpreted )" `isSuffixOf` line

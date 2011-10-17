@@ -35,6 +35,7 @@ import Graphics.UI.Gtk.Gdk.Events
 import Control.Monad.Trans (liftIO)
 import IDE.Pane.SourceBuffer (markRefInSourceBuf,selectSourceBuf)
 import System.IO
+import Data.List
 import Prelude hiding (catch)
 import Control.Exception hiding (try)
 import IDE.ImportTool
@@ -246,37 +247,43 @@ showLog = do
 simpleLog :: String -> IDEAction
 simpleLog str = do
     log :: IDELog <- getLog
-    liftIO $ appendLog log str LogTag
+    appendLog log str LogTag
     return ()
 
-appendLog :: IDELog -> String -> LogTag -> IO Int
+appendLog :: IDELog -> String -> LogTag -> IDEM Int
 appendLog l@(IDELog tv _) string tag = do
-    buf   <- textViewGetBuffer tv
-    iter  <- textBufferGetEndIter buf
-    textBufferSelectRange buf iter iter
-    textBufferInsert buf iter string
-    iter2 <- textBufferGetEndIter buf
-    let tagName = case tag of
-                    LogTag   -> Nothing
-                    ErrorTag -> Just "err"
-                    FrameTag -> Just "frame"
-                    InputTag -> Just "input"
-                    InfoTag  -> Just "info"
+    prefs <- readIDE prefs
+    liftIO $ do
+        buf   <- textViewGetBuffer tv
+        iter  <- textBufferGetEndIter buf
+        textBufferSelectRange buf iter iter
+        let string' = unlines . filter (not . filteredOutLine (filterLogOutput prefs)) . lines $ string
+        textBufferInsert buf iter string'
+        iter2 <- textBufferGetEndIter buf
+        let tagName = case tag of
+                        LogTag   -> Nothing
+                        ErrorTag -> Just "err"
+                        FrameTag -> Just "frame"
+                        InputTag -> Just "input"
+                        InfoTag  -> Just "info"
 
-    case tagName of
-        Nothing   -> return ()
-        Just name -> do
-            len   <- textBufferGetCharCount buf
-            strti <- textBufferGetIterAtOffset buf (len - length string)
-            textBufferApplyTagByName buf name iter2 strti
+        case tagName of
+            Nothing   -> return ()
+            Just name -> do
+                len   <- textBufferGetCharCount buf
+                strti <- textBufferGetIterAtOffset buf (len - length string')
+                textBufferApplyTagByName buf name iter2 strti
 
-    textBufferMoveMarkByName buf "end" iter2
-    mbMark <- textBufferGetMark buf "end"
-    line   <- textIterGetLine iter2
-    case mbMark of
-        Nothing   -> return ()
-        Just mark -> textViewScrollMarkOnscreen tv mark
-    return line
+        textBufferMoveMarkByName buf "end" iter2
+        mbMark <- textBufferGetMark buf "end"
+        line   <- textIterGetLine iter2
+        case mbMark of
+            Nothing   -> return ()
+            Just mark -> textViewScrollMarkOnscreen tv mark
+        return line
+    where
+        filteredOutLine :: [String] -> String -> Bool
+        filteredOutLine patts s = any (`isInfixOf` s) patts
 
 markErrorInLog :: IDELog -> (Int,Int) -> IO ()
 markErrorInLog (IDELog tv _) (l1,l2) = do
@@ -311,8 +318,8 @@ clearLog = do
 -- ** Spawning external processes
 --
 
-readOut :: IDELog -> Handle -> IO ()
-readOut log hndl =
+readOut :: IDELog -> IDERef -> Handle -> IO ()
+readOut log ideR hndl =
      catch (readAndShow)
        (\(e :: SomeException) -> do
         --appendLog log ("----------------------------------------\n") FrameTag
@@ -321,11 +328,11 @@ readOut log hndl =
     where
     readAndShow = do
         line <- hGetLine hndl
-        appendLog log (line ++ "\n") LogTag
+        reflectIDE (appendLog log (line ++ "\n") LogTag) ideR
         readAndShow
 
-readErr :: IDELog -> Handle -> IO ()
-readErr log hndl =
+readErr :: IDELog -> IDERef -> Handle -> IO ()
+readErr log ideR hndl =
      catch (readAndShow)
        (\(e :: SomeException) -> do
         hClose hndl
@@ -333,7 +340,7 @@ readErr log hndl =
     where
     readAndShow = do
         line <- hGetLine hndl
-        appendLog log (line ++ "\n") ErrorTag
+        reflectIDE (appendLog log (line ++ "\n") ErrorTag) ideR
         readAndShow
 
 runExternal :: FilePath -> [String] -> IO (Handle, Handle, Handle, ProcessHandle)

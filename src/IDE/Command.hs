@@ -798,7 +798,7 @@ registerLeksahEvents :: IDEAction
 registerLeksahEvents =    do
     stRef   <-  ask
     registerEvent stRef "LogMessage"
-        (\e@(LogMessage s t)      -> getLog >>= \(log :: IDELog) -> liftIO $ appendLog log s t
+        (\e@(LogMessage s t)      -> getLog >>= \(log :: IDELog) -> appendLog log s t
                                                 >> return e)
     registerEvent stRef "SelectInfo"
         (\ e@(SelectInfo str)     -> setSymbol str >> return e)

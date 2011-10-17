@@ -634,6 +634,18 @@ prefsDescription configDir packages = NFDPP [
             (\b a -> a{dontInstallLast = b})
             boolEditor
             (\i -> return ())
+         , mkFieldPP
+            (paraName <<<- ParaName "Filter out these lines in log output (one line per pattern, no regex)"
+                $ paraShadow <<<- ParaShadow ShadowIn
+                     $ paraDirection <<<- ParaDirection Vertical
+                        $ paraMinSize <<<- ParaMinSize (-1,130)
+                            $ emptyParams)
+            (PP.text . show)
+            readParser
+            (unlines . filterLogOutput)
+            (\b a -> a{filterLogOutput = lines b})
+            multilineStringEditor
+            (\i -> return ())
 
     ]),
     ("Debug", VFDPP emptyParams [
@@ -750,6 +762,7 @@ defaultPrefs = Prefs {
     ,   completeRestricted  =   False
     ,   saveAllBeforeBuild  =   True
     ,   jumpToWarnings      =   True
+    ,   filterLogOutput     =   []
     ,   backgroundBuild     =   True
     ,   makeMode            =   True
     ,   singleBuildWithoutLinking  = False
